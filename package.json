@@ -1,7 +1,12 @@
 {
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  },
   "dependencies": {
     "@alis-build/common-es": "^1.0.3",
-    "@alis-build/google-common-protos": "^1.7.0",
     "@bufbuild/protobuf": "^2.11.0",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1"
