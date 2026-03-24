@@ -1,9 +1,13 @@
 import type { JsonObject } from "./json";
 
-/** JSON string values for a message `role` in the A2A wire format. */
+/**
+ * JSON string values for a message `role` in the A2A wire format (matches protobuf enum names).
+ */
 export type MessageRole = "ROLE_UNSPECIFIED" | "ROLE_AGENT" | "ROLE_USER" | "";
 
-/** JSON string values for task `state` in the A2A wire format. */
+/**
+ * JSON string values for task `state` in the A2A wire format (matches protobuf enum names).
+ */
 export type TaskState =
   | "TASK_STATE_UNSPECIFIED"
   | "TASK_STATE_SUBMITTED"
@@ -25,12 +29,7 @@ export interface PartBase {
   mediaType?: string;
 }
 
-/**
- * A message or artifact content part in the JSON-RPC wire format: a flattened object with
- * exactly one of `text`, `data`, `raw` (base64 string), or `url`, plus optional `metadata`,
- * `filename`, and `mediaType`.
- */
-/** Text body. */
+/** Plain text body for a wire `Part`. */
 export interface PartText extends PartBase {
   text: string;
   data?: never;
@@ -62,27 +61,42 @@ export interface PartUrl extends PartBase {
   url: string;
 }
 
-/** Discriminated union: exactly one content field is present. */
+/**
+ * Discriminated union: exactly one of `text`, `data`, `raw` (base64), or `url` is present,
+ * plus optional `metadata`, `filename`, and `mediaType` from {@link PartBase}.
+ */
 export type Part = PartText | PartData | PartRaw | PartUrl;
 
+/** User or agent message as serialized in JSON-RPC `params` / stream payloads. */
 export interface Message {
+  /** Stable message identifier. */
   messageId: string;
+  /** Conversation or session identifier. */
   contextId?: string;
+  /** Extension URIs activated for this message. */
   extensions?: string[];
+  /** Arbitrary key/value metadata. */
   metadata?: JsonObject;
+  /** Content parts (flattened wire shape). */
   parts: Part[];
+  /** Related task IDs referenced by this message. */
   referenceTaskIds?: string[];
+  /** Sender role. */
   role: MessageRole;
+  /** Associated task when applicable. */
   taskId?: string;
 }
 
+/** Current lifecycle state of a task, optionally with a status message and timestamp. */
 export interface TaskStatus {
+  /** Optional human-readable or structured status message. */
   message?: Message;
   state: TaskState;
   /** RFC3339 timestamp string. */
   timestamp?: string;
 }
 
+/** Named output (e.g. file or generated content) attached to a task. */
 export interface Artifact {
   artifactId: string;
   description?: string;
@@ -92,6 +106,7 @@ export interface Artifact {
   parts: Part[];
 }
 
+/** Task aggregate: identity, status, optional history and artifacts. */
 export interface Task {
   id: string;
   artifacts?: Artifact[];
@@ -101,6 +116,7 @@ export interface Task {
   status: TaskStatus;
 }
 
+/** Streaming event: task status changed. */
 export interface TaskStatusUpdateEvent {
   contextId: string;
   status: TaskStatus;
@@ -108,6 +124,7 @@ export interface TaskStatusUpdateEvent {
   metadata?: JsonObject;
 }
 
+/** Streaming event: artifact created or updated (possibly chunked). */
 export interface TaskArtifactUpdateEvent {
   append?: boolean;
   artifact: Artifact;
@@ -150,7 +167,7 @@ export interface SendMessageConfig {
   pushNotificationConfig?: PushConfig;
 }
 
-/** Parameters for the `SendMessage` JSON-RPC method. */
+/** JSON-RPC `params` for `SendMessage` / `SendStreamingMessage`. */
 export interface SendMessageRequest {
   tenant?: string;
   configuration?: SendMessageConfig;
@@ -158,14 +175,16 @@ export interface SendMessageRequest {
   metadata?: JsonObject;
 }
 
-/** Parameters for the `GetTask` JSON-RPC method. */
+/** JSON-RPC `params` for `GetTask`. */
 export interface GetTaskRequest {
   tenant?: string;
+  /** Task ID to load. */
   id: string;
+  /** Max history messages to include when supported by the server. */
   historyLength?: number;
 }
 
-/** Parameters for the `ListTasks` JSON-RPC method. */
+/** JSON-RPC `params` for `ListTasks`. */
 export interface ListTasksRequest {
   tenant?: string;
   contextId?: string;
@@ -173,12 +192,12 @@ export interface ListTasksRequest {
   pageSize?: number;
   pageToken?: string;
   historyLength?: number;
-  /** RFC3339 timestamp string */
+  /** RFC3339 timestamp string — filter tasks with status updated after this instant. */
   statusTimestampAfter?: string;
   includeArtifacts?: boolean;
 }
 
-/** Result of the `ListTasks` JSON-RPC method. */
+/** JSON-RPC `result` for `ListTasks`. */
 export interface ListTasksResponse {
   tasks: Task[];
   totalSize: number;
@@ -186,14 +205,14 @@ export interface ListTasksResponse {
   nextPageToken: string;
 }
 
-/** Parameters for the `CancelTask` JSON-RPC method. */
+/** JSON-RPC `params` for `CancelTask`. */
 export interface CancelTaskRequest {
   tenant?: string;
   id: string;
   metadata?: JsonObject;
 }
 
-/** Parameters for the `SubscribeToTask` JSON-RPC method. */
+/** JSON-RPC `params` for `SubscribeToTask`. */
 export interface SubscribeToTaskRequest {
   tenant?: string;
   id: string;

@@ -1,22 +1,56 @@
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import {
+  GetExtendedAgentCardRequestSchema,
+  ListTasksRequestSchema,
+  type AgentCard,
+  type CancelTaskRequest,
+  type DeleteTaskPushNotificationConfigRequest,
+  type GetExtendedAgentCardRequest,
+  type GetTaskPushNotificationConfigRequest,
+  type GetTaskRequest,
+  type ListTaskPushNotificationConfigsRequest,
+  type ListTaskPushNotificationConfigsResponse,
+  type ListTasksRequest,
+  type ListTasksResponse,
+  type SendMessageRequest,
+  type SendMessageResponse,
+  type StreamResponse,
+  type SubscribeToTaskRequest,
+  type Task,
+  type TaskPushNotificationConfig,
+} from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js";
 import { A2AClientConfig, JsonRpcRequest, JsonRpcResponse } from "./types";
 import type {
-  AgentCard,
-  CancelTaskRequest,
-  CreateTaskPushConfigRequest,
-  DeleteTaskPushConfigRequest,
-  GetExtendedAgentCardRequest,
-  GetTaskPushConfigRequest,
-  GetTaskRequest,
-  ListTaskPushConfigRequest,
+  AgentCard as WireAgentCard,
   ListTaskPushConfigResponse,
-  ListTasksRequest,
-  ListTasksResponse,
-  SendMessageRequest,
-  StreamResponse,
-  SubscribeToTaskRequest,
-  Task,
-  TaskPushConfig,
+  ListTasksResponse as WireListTasksResponse,
+  StreamResponse as WireStreamResponse,
+  Task as WireTask,
+  TaskPushConfig as WireTaskPushConfig,
 } from "./wire";
+import { wireAgentCardToProto } from "./converters/agent-card";
+import {
+  protoCancelTaskRequestToWire,
+  protoDeleteTaskPushNotificationConfigRequestToWire,
+  protoGetExtendedAgentCardRequestToWire,
+  protoGetTaskPushNotificationConfigRequestToWire,
+  protoGetTaskRequestToWire,
+  protoListTaskPushNotificationConfigsRequestToWire,
+  protoListTasksRequestToWire,
+  protoSendMessageRequestToWire,
+  protoSubscribeToTaskRequestToWire,
+  protoTaskPushNotificationConfigToCreateWire,
+} from "./converters/requests";
+import {
+  wireListTaskPushNotificationConfigsResponseToProto,
+  wireListTasksResponseToProto,
+} from "./converters/responses";
+import {
+  wireSendMessageResponseToProto,
+  wireStreamResponseToProto,
+} from "./converters/stream-response";
+import { wireTaskPushConfigToProto } from "./converters/push-config";
+import { wireTaskToProto } from "./converters/task";
 import { createProtocolError, JsonRpcTransportError } from "./errors";
 import { readSseStream } from "./sse";
 
@@ -43,163 +77,225 @@ const JSONRPC_VERSION = "2.0";
 /**
  * Client for the A2A (Agent-to-Agent) API over JSON-RPC 2.0.
  *
+ * Public method parameters and results use **protobuf message types** from
+ * `lf/a2a/v1/a2a_pb`. The client converts to/from the JSON-RPC **wire** shapes
+ * in `transport/jsonrpc/wire` before `JSON.stringify` / after `response.json()`.
+ *
  * ## Architecture
  *
- * The client uses two transport modes:
- *
  * 1. **Unary** (`request`): POST with JSON body, await single JSON response.
- *    Used for: `sendMessage`, `getTask`, `listTasks`, `cancelTask`, etc.
- *
- * 2. **Streaming** (`stream`): POST with JSON body, response is Server-Sent
- *    Events (SSE). Each SSE data frame is a JSON-RPC response. Used for:
- *    `sendStreamingMessage`, `subscribeToTask`.
+ * 2. **Streaming** (`stream`): POST with JSON body, SSE frames; each frame is a JSON-RPC response.
  *
  * ## Error handling
  *
  * - **JsonRpcTransportError**: Network failures, non-2xx HTTP, stream read errors.
- * - **JsonRpcProtocolError** (and subclasses): Server returned a JSON-RPC
- *   error object (e.g. TaskNotFoundError, UnauthenticatedError).
+ * - **JsonRpcProtocolError** (and subclasses): Server returned a JSON-RPC error object.
  */
 export class A2AClient {
   private readonly config: A2AClientConfig;
-  /** Monotonically increasing request ID counter. */
+  /** Monotonically increasing JSON-RPC request `id` for each POST. */
   private requestId = 0;
 
+  /**
+   * @param config - Base URL, optional auth token provider, extension URIs, and extra headers
+   */
   constructor(config: A2AClientConfig) {
     this.config = config;
   }
 
   /**
-   * Sends a message and waits for a single complete response.
-   * Use sendStreamingMessage() if the agent streams partial updates.
+   * Unary `SendMessage`: waits until the server returns one JSON-RPC result.
+   *
+   * @param params - Protobuf `SendMessageRequest`
+   * @returns Protobuf `SendMessageResponse` (`task` or `message` payload)
+   * @throws `JsonRpcTransportError` — network failure or non-2xx HTTP
+   * @throws `JsonRpcProtocolError` (or subclass) — JSON-RPC `error` in the body
    */
-  async sendMessage(params: SendMessageRequest): Promise<StreamResponse> {
-    return this.request<StreamResponse>(Methods.sendMessage, params);
+  async sendMessage(params: SendMessageRequest): Promise<SendMessageResponse> {
+    const wire = await this.request<WireStreamResponse>(
+      Methods.sendMessage,
+      protoSendMessageRequestToWire(params),
+    );
+    return wireSendMessageResponseToProto(wire);
   }
 
   /**
-   * Retrieves a task by ID.
+   * @param params - Protobuf `GetTaskRequest`
+   * @returns Protobuf `Task`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async getTask(params: GetTaskRequest): Promise<Task> {
-    return this.request<Task>(Methods.getTask, params);
+    const wire = await this.request<WireTask>(
+      Methods.getTask,
+      protoGetTaskRequestToWire(params),
+    );
+    return wireTaskToProto(wire);
   }
 
   /**
-   * Cancels a task by ID.
+   * @param params - Protobuf `CancelTaskRequest`
+   * @returns Updated protobuf `Task`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async cancelTask(params: CancelTaskRequest): Promise<Task> {
-    return this.request<Task>(Methods.cancelTask, params);
-  }
-
-  /** Lists tasks, with optional filtering and pagination. */
-  async listTasks(
-    params: Partial<ListTasksRequest> = {},
-  ): Promise<ListTasksResponse> {
-    return this.request<ListTasksResponse>(Methods.listTasks, params);
-  }
-
-  /** Retrieves a push notification config by task ID and config ID. */
-  async getTaskPushNotificationConfig(
-    params: GetTaskPushConfigRequest,
-  ): Promise<TaskPushConfig> {
-    return this.request<TaskPushConfig>(
-      Methods.getTaskPushNotificationConfig,
-      params,
+    const wire = await this.request<WireTask>(
+      Methods.cancelTask,
+      protoCancelTaskRequestToWire(params),
     );
+    return wireTaskToProto(wire);
   }
 
   /**
-   * Creates a push notification config for a task.
-   * Request body: `taskId`, nested `config`, optional `tenant`.
+   * Merges `params` with schema defaults via `create(ListTasksRequestSchema, params)` before converting to wire.
+   *
+   * @param params - Partial protobuf init for `ListTasksRequest` (default `{}`)
+   * @returns Protobuf `ListTasksResponse`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
+   */
+  async listTasks(
+    params: MessageInitShape<typeof ListTasksRequestSchema> = {},
+  ): Promise<ListTasksResponse> {
+    const merged = create(ListTasksRequestSchema, params);
+    const wire = await this.request<WireListTasksResponse>(
+      Methods.listTasks,
+      protoListTasksRequestToWire(merged),
+    );
+    return wireListTasksResponseToProto(wire);
+  }
+
+  /**
+   * @param params - Protobuf `GetTaskPushNotificationConfigRequest`
+   * @returns Protobuf `TaskPushNotificationConfig`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
+   */
+  async getTaskPushNotificationConfig(
+    params: GetTaskPushNotificationConfigRequest,
+  ): Promise<TaskPushNotificationConfig> {
+    const wire = await this.request<WireTaskPushConfig>(
+      Methods.getTaskPushNotificationConfig,
+      protoGetTaskPushNotificationConfigRequestToWire(params),
+    );
+    return wireTaskPushConfigToProto(wire);
+  }
+
+  /**
+   * On the wire, params are sent as `{ taskId, config }`; this method accepts the flat protobuf RPC shape.
+   *
+   * @param params - Protobuf `TaskPushNotificationConfig`
+   * @returns Created config as protobuf message
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async createTaskPushNotificationConfig(
-    params: CreateTaskPushConfigRequest,
-  ): Promise<TaskPushConfig> {
-    return this.request<TaskPushConfig>(
+    params: TaskPushNotificationConfig,
+  ): Promise<TaskPushNotificationConfig> {
+    const wire = await this.request<WireTaskPushConfig>(
       Methods.createTaskPushNotificationConfig,
-      params,
+      protoTaskPushNotificationConfigToCreateWire(params),
     );
-  }
-
-  /** Lists push notification configs for a task. */
-  async listTaskPushNotificationConfigs(
-    params: ListTaskPushConfigRequest,
-  ): Promise<ListTaskPushConfigResponse> {
-    return this.request<ListTaskPushConfigResponse>(
-      Methods.listTaskPushNotificationConfigs,
-      params,
-    );
-  }
-
-  /** Deletes a push notification config. Returns void — server sends an empty result. */
-  async deleteTaskPushNotificationConfig(
-    params: DeleteTaskPushConfigRequest,
-  ): Promise<void> {
-    await this.request<void>(Methods.deleteTaskPushNotificationConfig, params);
-  }
-
-  /** Retrieves the extended agent card. */
-  async getExtendedAgentCard(
-    params: Partial<GetExtendedAgentCardRequest> = {},
-  ): Promise<AgentCard> {
-    return this.request<AgentCard>(Methods.getExtendedAgentCard, params);
+    return wireTaskPushConfigToProto(wire);
   }
 
   /**
-   * Sends a message and streams back status/artifact update events.
+   * @param params - Protobuf `ListTaskPushNotificationConfigsRequest`
+   * @returns Protobuf `ListTaskPushNotificationConfigsResponse`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
+   */
+  async listTaskPushNotificationConfigs(
+    params: ListTaskPushNotificationConfigsRequest,
+  ): Promise<ListTaskPushNotificationConfigsResponse> {
+    const wire = await this.request<ListTaskPushConfigResponse>(
+      Methods.listTaskPushNotificationConfigs,
+      protoListTaskPushNotificationConfigsRequestToWire(params),
+    );
+    return wireListTaskPushNotificationConfigsResponseToProto(wire);
+  }
+
+  /**
+   * @param params - Protobuf `DeleteTaskPushNotificationConfigRequest`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
+   */
+  async deleteTaskPushNotificationConfig(
+    params: DeleteTaskPushNotificationConfigRequest,
+  ): Promise<void> {
+    await this.request<void>(
+      Methods.deleteTaskPushNotificationConfig,
+      protoDeleteTaskPushNotificationConfigRequestToWire(params),
+    );
+  }
+
+  /**
+   * @param params - Partial protobuf init for `GetExtendedAgentCardRequest` (default `{}`)
+   * @returns Protobuf `AgentCard`
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
+   */
+  async getExtendedAgentCard(
+    params: MessageInitShape<typeof GetExtendedAgentCardRequestSchema> = {},
+  ): Promise<AgentCard> {
+    const merged = create(GetExtendedAgentCardRequestSchema, params);
+    const wire = await this.request<WireAgentCard>(
+      Methods.getExtendedAgentCard,
+      protoGetExtendedAgentCardRequestToWire(merged),
+    );
+    return wireAgentCardToProto(wire);
+  }
+
+  /**
+   * POSTs `SendStreamingMessage` and parses SSE frames; each successful frame becomes one yielded `StreamResponse`.
    *
-   * The caller controls the stream lifetime via an AbortSignal:
-   * ```ts
-   * const controller = new AbortController()
-   * for await (const event of client.sendStreamingMessage(params, controller.signal)) {
-   *   if (done) controller.abort() // exits the loop cleanly, no error thrown
-   * }
-   * ```
-   *
-   * @throws {JsonRpcTransportError} On fetch failure or stream read error.
-   * @throws {JsonRpcProtocolError} On a JSON-RPC error frame (terminal).
+   * @param params - Protobuf `SendMessageRequest`
+   * @param signal - Optional `AbortSignal` to cancel `fetch` / stream read
+   * @yields Protobuf `StreamResponse` per SSE JSON-RPC result
+   * @throws `JsonRpcTransportError` — connection or stream errors (abort ends iteration without throw)
+   * @throws `JsonRpcProtocolError` — JSON-RPC error frame (terminal)
    */
   async *sendStreamingMessage(
     params: SendMessageRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<StreamResponse> {
-    yield* this.stream<StreamResponse>(
+    for await (const wire of this.stream<WireStreamResponse>(
       Methods.sendStreamingMessage,
-      params,
+      protoSendMessageRequestToWire(params),
       signal,
-    );
+    )) {
+      yield wireStreamResponseToProto(wire);
+    }
   }
 
   /**
-   * Resubscribes to an existing task's event stream.
+   * Same SSE mechanics as {@link A2AClient.sendStreamingMessage} for `SubscribeToTask`.
    *
-   * @throws {JsonRpcTransportError} On fetch failure or stream read error.
-   * @throws {JsonRpcProtocolError} On a JSON-RPC error frame (terminal).
+   * @param params - Protobuf `SubscribeToTaskRequest`
+   * @param signal - Optional cancellation
+   * @yields Protobuf `StreamResponse` events for the task
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async *subscribeToTask(
     params: SubscribeToTaskRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<StreamResponse> {
-    yield* this.stream<StreamResponse>(
+    for await (const wire of this.stream<WireStreamResponse>(
       Methods.subscribeToTask,
-      params,
+      protoSubscribeToTaskRequestToWire(params),
       signal,
-    );
+    )) {
+      yield wireStreamResponseToProto(wire);
+    }
   }
 
   /**
-   * Sends a JSON-RPC 2.0 POST request and returns the typed result.
+   * Unary path: POST → parse single JSON body → return `result` or throw on `error`.
    *
-   * Flow: post() → parse JSON → check for error → return result
-   *
-   * @throws {JsonRpcTransportError} On fetch failure or non-2xx HTTP status.
-   * @throws {JsonRpcProtocolError} On a JSON-RPC error object in the response.
+   * @param method - JSON-RPC method name (see `Methods`)
+   * @param params - Wire object passed as JSON-RPC `params` (already proto→wire converted)
+   * @typeParam R - Wire shape of `result` before further conversion by the caller
+   * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   private async request<R>(method: string, params?: unknown): Promise<R> {
     const response = await this.post(method, params);
 
     let data: JsonRpcResponse<R>;
     try {
+      // Single JSON object expected; malformed body is a transport-level failure.
       data = await response.json();
     } catch {
       throw new JsonRpcTransportError(
@@ -215,11 +311,11 @@ export class A2AClient {
   }
 
   /**
-   * Sends a JSON-RPC 2.0 POST request and streams back typed responses via SSE.
+   * Streaming path: same POST as unary, but response body is SSE; each `data:` line is a `JsonRpcResponse`.
    *
-   * Flow: post() → readSseStream() parses SSE frames → each frame yields result
+   * `readSseStream` throws on protocol errors; successful frames expose `result` here (error objects never reach this loop).
    *
-   * Delegates frame parsing, buffering, and error handling to readSseStream().
+   * @typeParam T - Wire payload type inside each frame's `result`
    */
   private async *stream<T>(
     method: string,
@@ -234,12 +330,10 @@ export class A2AClient {
   }
 
   /**
-   * Performs the underlying POST request for both unary and streaming calls.
+   * Builds the JSON-RPC envelope (`jsonrpc`, `method`, `params`, monotonic `id`) and POSTs to `config.baseUrl`.
    *
-   * Builds a JSON-RPC 2.0 request envelope, adds auth header if configured,
-   * and validates the HTTP response. Does not parse the response body.
-   *
-   * @throws {JsonRpcTransportError} On fetch failure or non-2xx HTTP status.
+   * @param signal - Passed to `fetch` for streaming methods when provided
+   * @throws `JsonRpcTransportError` — fetch failure or non-2xx status
    */
   private async post(
     method: string,
@@ -262,9 +356,6 @@ export class A2AClient {
         signal,
       });
     } catch (cause) {
-      // AbortError is re-thrown here since it occurs before we even have a
-      // Response — the generator in stream() won't get a chance to swallow it.
-      // Let it propagate naturally so the caller sees a clean loop exit.
       throw new JsonRpcTransportError(
         `Network error calling ${method}: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
@@ -280,7 +371,9 @@ export class A2AClient {
     return response;
   }
 
-  /** Builds request headers including Content-Type and optional Authorization. */
+  /**
+   * @returns Headers with `Content-Type: application/json`, optional `Authorization`, `A2A-Extensions`, and `extraHeaders`
+   */
   private async buildHeaders(): Promise<HeadersInit> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

@@ -168,7 +168,10 @@ function* processFrame<T>(frame: SseFrame): Generator<JsonRpcResponse<T>> {
   yield parsed;
 }
 
-/** Detects AbortError from DOMException (used when fetch/stream is aborted). */
+/**
+ * @param err - Caught exception from `reader.read()` or similar
+ * @returns Whether `err` is a user abort (stream should end quietly)
+ */
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }

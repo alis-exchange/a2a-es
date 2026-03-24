@@ -13,6 +13,9 @@ export class JsonRpcProtocolError extends Error {
   /** Optional additional data from the server. */
   public readonly data: unknown;
 
+  /**
+   * @param error - JSON-RPC error object from the server response
+   */
   constructor(error: JsonRpcError) {
     super(error.message);
     this.name = "JsonRpcProtocolError";
@@ -33,6 +36,10 @@ export class JsonRpcTransportError extends Error {
   /** HTTP status code, if the failure was due to a non-2xx response. */
   public readonly status?: number;
 
+  /**
+   * @param message - Human-readable failure reason
+   * @param status - HTTP status when failure was a non-2xx response
+   */
   constructor(message: string, status?: number) {
     super(message);
     this.name = "JsonRpcTransportError";

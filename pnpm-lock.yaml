@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@alis-build/common-es':
-        specifier: ^1.0.3
-        version: 1.0.3
+        specifier: ^1.0.4
+        version: 1.0.4
       '@bufbuild/protobuf':
         specifier: ^2.11.0
         version: 2.11.0
@@ -27,8 +27,8 @@ importers:
 
 packages:
 
-  '@alis-build/common-es@1.0.3':
-    resolution: {integrity: sha512-w3iAdW1qZf+ufcUNSYNy0ZK0WbiVDd9pc6o4S7J7YoswV0Iw0kGCymq0MQlZVVD1wb+mFCDwy3PfdvFrdPaF4g==}
+  '@alis-build/common-es@1.0.4':
+    resolution: {integrity: sha512-LMbMIe2mp+EdG4SvZJrumfHXQox4imteTajnsgGxluKnGJ7oUZtfnxSaZYKsk9Yq4UsH5DiqcvS45nra/sTfYg==}
 
   '@bufbuild/protobuf@2.11.0':
     resolution: {integrity: sha512-sBXGT13cpmPR5BMgHE6UEEfEaShh5Ror6rfN3yEK5si7QVrtZg8LEPQb0VVhiLRUslD2yLnXtnRzG035J/mZXQ==}
@@ -582,7 +582,7 @@ packages:
 
 snapshots:
 
-  '@alis-build/common-es@1.0.3':
+  '@alis-build/common-es@1.0.4':
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@connectrpc/connect': 2.1.1(@bufbuild/protobuf@2.11.0)

@@ -7,7 +7,7 @@ TypeScript types and a **JSON-RPC 2.0** client for the **Agent-to-Agent (A2A)** 
 ## Requirements
 
 - **Runtime**: `fetch`, `TextDecoderStream`, and `AbortSignal` (e.g. **Node.js 18+** or modern browsers).
-- **Types**: Request/response payloads for the client are defined in `transport/jsonrpc/wire` as the **A2A JSON-RPC wire format** (what a conforming server expects on the wire). They differ from the **Connect / `@bufbuild/protobuf`** message shapes under `lf/a2a/v1/` (field names, nesting, and optional `SendMessageConfiguration` fields such as `blocking` vs wire `returnImmediately`).
+- **Types**: `A2AClient` methods use **protobuf message types** from `lf/a2a/v1/a2a_pb` (`@bufbuild/protobuf` `create()` / message instances). The client converts to the **JSON-RPC wire format** in `transport/jsonrpc/wire` before sending JSON (see `transport/jsonrpc/converters`). Wire types still differ for: flattened `Part`, nested push `config` vs flat `TaskPushNotificationConfig`, string timestamps vs `google.protobuf.Timestamp`, string task-state labels vs enums. Send-message configuration uses the same **`returnImmediately`** field name as in current `@alis-build/common-es` stubs (older `.proto` shapes used `blocking`, inverted vs wire).
 
 ## Installation
 
@@ -26,6 +26,14 @@ import { A2AClient } from "./transport/jsonrpc";
 ## Quick start
 
 ```typescript
+import { create } from "@bufbuild/protobuf";
+import {
+  MessageSchema,
+  PartSchema,
+  Role,
+  SendMessageConfigurationSchema,
+  SendMessageRequestSchema,
+} from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js"; // or a local `lf/` re-export in your repo
 import { A2AClient } from "./transport/jsonrpc";
 
 const client = new A2AClient({
@@ -35,40 +43,59 @@ const client = new A2AClient({
   extraHeaders: { "X-Custom-Header": "value" }, // optional
 });
 
-// Unary — one JSON-RPC response (wire-format fields: `parts`, `acceptedOutputModes`, `returnImmediately`, …)
-const response = await client.sendMessage({
-  tenant: "",
-  message: {
-    messageId: "00000000-0000-7000-0000-000000000001",
-    role: "ROLE_USER",
-    parts: [{ text: "Hello" }],
-  },
-  configuration: {
-    acceptedOutputModes: ["text/plain"],
-    returnImmediately: true,
-  },
-});
+const response = await client.sendMessage(
+  create(SendMessageRequestSchema, {
+    tenant: "",
+    message: create(MessageSchema, {
+      messageId: "00000000-0000-7000-0000-000000000001",
+      role: Role.USER,
+      parts: [
+        create(PartSchema, {
+          content: { case: "text", value: "Hello" },
+          filename: "",
+          mediaType: "",
+        }),
+      ],
+      contextId: "",
+      taskId: "",
+      extensions: [],
+      referenceTaskIds: [],
+    }),
+    configuration: create(SendMessageConfigurationSchema, {
+      acceptedOutputModes: ["text/plain"],
+      returnImmediately: true,
+    }),
+  }),
+);
 
-// Streaming — SSE `data:` lines parsed as JSON-RPC; iterator yields each **result** payload
 const controller = new AbortController();
 for await (const event of client.sendStreamingMessage(
-  {
+  create(SendMessageRequestSchema, {
     tenant: "",
-    message: {
+    message: create(MessageSchema, {
       messageId: "00000000-0000-7000-0000-000000000002",
-      role: "ROLE_USER",
-      parts: [{ text: "Hello" }],
-    },
-    configuration: {
+      role: Role.USER,
+      parts: [
+        create(PartSchema, {
+          content: { case: "text", value: "Hello" },
+          filename: "",
+          mediaType: "",
+        }),
+      ],
+      contextId: "",
+      taskId: "",
+      extensions: [],
+      referenceTaskIds: [],
+    }),
+    configuration: create(SendMessageConfigurationSchema, {
       acceptedOutputModes: ["text/plain"],
       returnImmediately: false,
-    },
-  },
+    }),
+  }),
   controller.signal,
 )) {
   console.log(event);
 }
-// controller.abort() ends the stream without treating it as a hard failure
 ```
 
 ## `A2AClient` methods
@@ -87,7 +114,13 @@ for await (const event of client.sendStreamingMessage(
 | `sendStreamingMessage`             | `SendStreamingMessage`             | Streaming (async iterator) |
 | `subscribeToTask`                  | `SubscribeToTask`                  | Streaming (async iterator) |
 
-Push-notification methods use the same JSON-RPC names as the protobuf RPCs, but **request bodies** follow the JSON-RPC wire shape (e.g. `createTaskPushNotificationConfig` expects `{ taskId, config }`, not a flat protobuf `AsObject`).
+The client still calls the same JSON-RPC methods; **on the wire**, push create uses `{ taskId, config }`. The **TypeScript** API for `createTaskPushNotificationConfig` matches the protobuf RPC: a single `TaskPushNotificationConfig` message (flat `taskId`, `url`, `token`, …).
+
+## Documentation (API reference)
+
+Public APIs under `transport/jsonrpc` are documented with **JSDoc** on the `A2AClient`, configuration and JSON-RPC types (`types.ts`), errors, SSE reader, **wire** interfaces (`wire/`), and every **converter** (`converters/*.ts`). Method parameters use `@param`, return types `@returns`, and failure modes `@throws` where it helps.
+
+If you generate HTML docs, point [TypeDoc](https://typedoc.org/) (or your toolchain) at the package entry that re-exports `./transport/jsonrpc` so `@packageDocumentation` in `index.ts` becomes the module overview.
 
 ## Transport (`transport/jsonrpc`)
 
@@ -124,12 +157,13 @@ Use `createProtocolError(raw)` if you need the same mapping from a raw `JsonRpcE
 
 ### Exports
 
-The barrel re-exports **all wire types** (`export type * from "./wire"`), so you can import request/result shapes, `Part` variants, push config types, and agent card types from the same entry as the client.
+The barrel re-exports **all wire types** (`export type * from "./wire"`) and **all converter functions** (`export * from "./converters"`) for building custom transports or tests.
 
 ```typescript
 import {
   A2AClient,
   createProtocolError,
+  protoSendMessageRequestToWire,
   JsonRpcProtocolError,
   JsonRpcTransportError,
   TaskNotFoundError,
@@ -148,31 +182,30 @@ import type {
   JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,
-  SendMessageRequest,
-  StreamResponse,
-  Task,
-  Part,
-  PartText,
 } from "./transport/jsonrpc";
+// Wire escape hatch (JSON shapes), e.g. PartText, StreamResponse as on the wire:
+import type { PartText, StreamResponse as WireStreamResponse } from "./transport/jsonrpc";
 ```
 
-### Connect / Protobuf vs JSON-RPC types
+### Wire vs protobuf (cheat sheet)
 
-| Use case                               | Types                                                                                                                                                                                       |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **JSON-RPC client** (`A2AClient`)      | Wire types from `./transport/jsonrpc` (e.g. `SendMessageRequest`, `Task`, `StreamResponse`). These match the **A2A JSON-RPC** payloads your server accepts.                                 |
-| **Connect-Web / `@bufbuild/protobuf`** | Generated stubs under `lf/a2a/v1/` (`a2a_pb.js` / `a2a_pb.d.ts`, `a2a_connect.js`) — `Message` types from `@bufbuild/protobuf`, camelCase fields, different nesting than the JSON-RPC wire. |
+| Topic | Wire (`transport/jsonrpc/wire`) | Protobuf (`lf/a2a/v1`) |
+| ----- | ------------------------------- | ------------------------ |
+| Send config | `returnImmediately` | `returnImmediately` (same in current stubs; legacy proto used `blocking`, inverted) |
+| Push in send config | `pushNotificationConfig` | `taskPushNotificationConfig` |
+| Create push RPC body | `{ taskId, config: PushConfig }` | `TaskPushNotificationConfig` (flat) |
+| Part content | One of top-level `text` / `data` / `raw` / `url` | `content` oneof (`case` + `value`) |
+| Task state / role | Strings (`TASK_STATE_*`, `ROLE_*`) | `TaskState` / `Role` enums |
+| Timestamps (e.g. list filter) | RFC3339 string | `google.protobuf.Timestamp` |
 
-Do not pass Connect/protobuf message trees directly to `A2AClient` methods: field names and shapes differ (e.g. wire `parts` and `configuration.returnImmediately` vs generated `blocking`, wire `pushNotificationConfig` vs protobuf `taskPushNotificationConfig`, nested `config` on create-push requests).
-
-**Parts:** JSON-RPC uses one flat object per part with exactly one of `text`, `data`, `raw` (base64 string), or `url`, plus optional `metadata`, `filename`, and `mediaType`. TypeScript models this as `Part` (`PartText` \| `PartData` \| `PartRaw` \| `PartUrl`), not the protobuf oneof layout.
+**Parts on the wire:** one flat object per part with exactly one of `text`, `data`, `raw` (base64), or `url`. In protobuf, use `create(PartSchema, { content: { case: "text", value: "…" }, … })`.
 
 ## Project layout
 
 | Path                 | Purpose                                                                   |
 | -------------------- | ------------------------------------------------------------------------- |
 | `lf/a2a/v1/`         | Generated **protoc-gen-es** + **Connect** stubs (A2A API) for web/Connect |
-| `transport/jsonrpc/` | JSON-RPC client, SSE parser, errors, **wire types** (`wire/`)             |
+| `transport/jsonrpc/` | JSON-RPC client, SSE parser, errors, **wire types** (`wire/`), **converters** (`converters/`) |
 
 ## Development
 
@@ -186,10 +219,10 @@ pnpm test
 ## Dependencies (package)
 
 - `@bufbuild/protobuf` — generated message types and codegen support
-- `@connectrpc/connect` / `@connectrpc/connect-web` — Connect-RPC client stubs in `lf/a2a/v1/`
-- `@alis-build/common-es` — shared Alis Build ECMAScript utilities
+- `@connectrpc/connect` / `@connectrpc/connect-web` — Connect-RPC client stubs in `lf/a2a/v1/` (when using that transport)
+- `@alis-build/common-es` — A2A protobuf modules (`lf/a2a/v1/a2a_pb.js`) consumed by `A2AClient` and converters; keep this aligned with the proto revision you target (e.g. **^1.0.4** where dependency wiring was fixed)
 
-The JSON-RPC client itself only uses standard Web APIs (`fetch`, streams).
+The JSON-RPC client runtime uses standard Web APIs (`fetch`, streams). TypeScript types for requests/responses come from **protobuf** messages in `common-es`, not from the wire interfaces alone.
 
 ## License
 
