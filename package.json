@@ -13,5 +13,5 @@
   "scripts": {
     "test": "vitest run"
   },
-  "version": "1.0.534"
+  "version": "1.0.541"
 }
