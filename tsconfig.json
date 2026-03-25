@@ -7,9 +7,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": [
-    "transport/**/*.ts",
-    "vitest.config.ts",
-    "lf/**/*.d.ts"
-  ]
+  "include": ["transport/**/*.ts", "vitest.config.ts"]
 }

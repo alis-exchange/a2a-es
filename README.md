@@ -1,23 +1,29 @@
 # @alis-build/a2a-es
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-TypeScript types and a **JSON-RPC 2.0** client for the **Agent-to-Agent (A2A)** API: unary requests (single JSON response) and **Server-Sent Events (SSE)** streaming for live updates.
+TypeScript helpers for the **Agent-to-Agent (A2A)** API over **JSON-RPC 2.0**: a small **`A2AClient`** for unary POST/JSON calls and **Server-Sent Events (SSE)** streaming. This package does **not** ship generated protobuf or Connect stubs; request/response **types** come from **`@alis-build/common-es`** (`lf/a2a/v1/a2a_pb.js`), and this library converts between those protobuf-shaped values and the JSON-RPC wire format.
 
 ## Requirements
 
-- **Runtime**: `fetch`, `TextDecoderStream`, and `AbortSignal` (e.g. **Node.js 18+** or modern browsers).
-- **Types**: `A2AClient` methods use **protobuf message types** from `lf/a2a/v1/a2a_pb` (`@bufbuild/protobuf` `create()` / message instances). The client converts to the **JSON-RPC wire format** in `transport/jsonrpc/wire` before sending JSON (see `transport/jsonrpc/converters`). Wire types still differ for: flattened `Part`, nested push `config` vs flat `TaskPushNotificationConfig`, string timestamps vs `google.protobuf.Timestamp`, string task-state labels vs enums. Send-message configuration uses the same **`returnImmediately`** field name as in current `@alis-build/common-es` stubs (older `.proto` shapes used `blocking`, inverted vs wire).
+- **Runtime:** `fetch`, `TextDecoderStream`, and `AbortSignal` (e.g. **Node.js 18+** or modern browsers).
+- **Types:** Install **`@alis-build/common-es`** and use **`@bufbuild/protobuf`** `create()` with the A2A schemas from `@alis-build/common-es/lf/a2a/v1/a2a_pb.js`. The client converts to the **JSON-RPC wire format** in `transport/jsonrpc/wire` before sending JSON (see `transport/jsonrpc/converters`). Wire shapes still differ from protobuf for: flattened `Part`, nested push `config` vs flat `TaskPushNotificationConfig`, string timestamps vs `google.protobuf.Timestamp`, string task-state labels vs enums. Send-message configuration uses **`returnImmediately`** as in current `@alis-build/common-es` stubs (older `.proto` shapes used `blocking`, inverted vs wire).
 
 ## Installation
 
 ```bash
-npm install @alis-build/a2a-es
+npm install @alis-build/a2a-es @alis-build/common-es @bufbuild/protobuf
 # or
-pnpm add @alis-build/a2a-es
+pnpm add @alis-build/a2a-es @alis-build/common-es @bufbuild/protobuf
 ```
 
-Use the published package entry points from `package.json` (or your bundler’s resolution). When working from a checkout, import the client relative to `transport/jsonrpc`:
+The package root re-exports the client (`package.json` `exports` → `transport/jsonrpc/index.ts`). From npm:
+
+```typescript
+import { A2AClient } from "@alis-build/a2a-es";
+```
+
+From a git checkout:
 
 ```typescript
 import { A2AClient } from "./transport/jsonrpc";
@@ -33,8 +39,8 @@ import {
   Role,
   SendMessageConfigurationSchema,
   SendMessageRequestSchema,
-} from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js"; // or a local `lf/` re-export in your repo
-import { A2AClient } from "./transport/jsonrpc";
+} from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js";
+import { A2AClient } from "@alis-build/a2a-es";
 
 const client = new A2AClient({
   baseUrl: "https://agent.example.com/jsonrpc",
@@ -114,11 +120,11 @@ for await (const event of client.sendStreamingMessage(
 | `sendStreamingMessage`             | `SendStreamingMessage`             | Streaming (async iterator) |
 | `subscribeToTask`                  | `SubscribeToTask`                  | Streaming (async iterator) |
 
-The client still calls the same JSON-RPC methods; **on the wire**, push create uses `{ taskId, config }`. The **TypeScript** API for `createTaskPushNotificationConfig` matches the protobuf RPC: a single `TaskPushNotificationConfig` message (flat `taskId`, `url`, `token`, …).
+The client calls the same JSON-RPC methods; **on the wire**, push create uses `{ taskId, config }`. The **TypeScript** API for `createTaskPushNotificationConfig` matches the protobuf RPC: a single `TaskPushNotificationConfig` message (flat `taskId`, `url`, `token`, …).
 
 ## Documentation (API reference)
 
-Public APIs under `transport/jsonrpc` are documented with **JSDoc** on the `A2AClient`, configuration and JSON-RPC types (`types.ts`), errors, SSE reader, **wire** interfaces (`wire/`), and every **converter** (`converters/*.ts`). Method parameters use `@param`, return types `@returns`, and failure modes `@throws` where it helps.
+Public APIs under `transport/jsonrpc` are documented with **JSDoc** on `A2AClient`, configuration and JSON-RPC types (`types.ts`), errors, the SSE reader, **wire** interfaces (`wire/`), and **converters** (`converters/*.ts`). Method parameters use `@param`, return types `@returns`, and failure modes `@throws` where it helps.
 
 If you generate HTML docs, point [TypeDoc](https://typedoc.org/) (or your toolchain) at the package entry that re-exports `./transport/jsonrpc` so `@packageDocumentation` in `index.ts` becomes the module overview.
 
@@ -175,37 +181,43 @@ import {
   ExtendedCardNotConfiguredError,
   UnauthenticatedError,
   UnauthorizedError,
-} from "./transport/jsonrpc";
+} from "@alis-build/a2a-es";
 
 import type {
   A2AClientConfig,
   JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,
-} from "./transport/jsonrpc";
+} from "@alis-build/a2a-es";
 // Wire escape hatch (JSON shapes), e.g. PartText, StreamResponse as on the wire:
-import type { PartText, StreamResponse as WireStreamResponse } from "./transport/jsonrpc";
+import type {
+  PartText,
+  StreamResponse as WireStreamResponse,
+} from "@alis-build/a2a-es";
 ```
 
 ### Wire vs protobuf (cheat sheet)
 
-| Topic | Wire (`transport/jsonrpc/wire`) | Protobuf (`lf/a2a/v1`) |
-| ----- | ------------------------------- | ------------------------ |
-| Send config | `returnImmediately` | `returnImmediately` (same in current stubs; legacy proto used `blocking`, inverted) |
-| Push in send config | `pushNotificationConfig` | `taskPushNotificationConfig` |
-| Create push RPC body | `{ taskId, config: PushConfig }` | `TaskPushNotificationConfig` (flat) |
-| Part content | One of top-level `text` / `data` / `raw` / `url` | `content` oneof (`case` + `value`) |
-| Task state / role | Strings (`TASK_STATE_*`, `ROLE_*`) | `TaskState` / `Role` enums |
-| Timestamps (e.g. list filter) | RFC3339 string | `google.protobuf.Timestamp` |
+Protobuf-shaped types here means the messages from **`@alis-build/common-es`** (`lf/a2a/v1`), not types defined only in this repo.
+
+| Topic                         | Wire (`transport/jsonrpc/wire`)                  | Protobuf (`@alis-build/common-es` `lf/a2a/v1`)                                      |
+| ----------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Send config                   | `returnImmediately`                              | `returnImmediately` (same in current stubs; legacy proto used `blocking`, inverted) |
+| Push in send config           | `pushNotificationConfig`                         | `taskPushNotificationConfig`                                                        |
+| Create push RPC body          | `{ taskId, config: PushConfig }`                 | `TaskPushNotificationConfig` (flat)                                                 |
+| Part content                  | One of top-level `text` / `data` / `raw` / `url` | `content` oneof (`case` + `value`)                                                  |
+| Task state / role             | Strings (`TASK_STATE_*`, `ROLE_*`)               | `TaskState` / `Role` enums                                                          |
+| Timestamps (e.g. list filter) | RFC3339 string                                   | `google.protobuf.Timestamp`                                                         |
 
 **Parts on the wire:** one flat object per part with exactly one of `text`, `data`, `raw` (base64), or `url`. In protobuf, use `create(PartSchema, { content: { case: "text", value: "…" }, … })`.
 
 ## Project layout
 
-| Path                 | Purpose                                                                   |
-| -------------------- | ------------------------------------------------------------------------- |
-| `lf/a2a/v1/`         | Generated **protoc-gen-es** + **Connect** stubs (A2A API) for web/Connect |
+| Path                 | Purpose                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------- |
 | `transport/jsonrpc/` | JSON-RPC client, SSE parser, errors, **wire types** (`wire/`), **converters** (`converters/`) |
+
+A2A **ES/protobuf stubs** (`a2a_pb`, services, etc.) live in the separate **`@alis-build/common-es`** package; install it next to this one.
 
 ## Development
 
@@ -216,13 +228,13 @@ pnpm install
 pnpm test
 ```
 
-## Dependencies (package)
+## Dependencies (this package)
 
-- `@bufbuild/protobuf` — generated message types and codegen support
-- `@connectrpc/connect` / `@connectrpc/connect-web` — Connect-RPC client stubs in `lf/a2a/v1/` (when using that transport)
-- `@alis-build/common-es` — A2A protobuf modules (`lf/a2a/v1/a2a_pb.js`) consumed by `A2AClient` and converters; keep this aligned with the proto revision you target (e.g. **^1.0.4** where dependency wiring was fixed)
+- **`@alis-build/common-es`** — A2A protobuf modules (`lf/a2a/v1/a2a_pb.js`) used by `A2AClient` and converters; align its version with the proto revision you target.
+- **`@bufbuild/protobuf`** — `create()` and message runtime used with those schemas.
+- **`@connectrpc/connect`** / **`@connectrpc/connect-web`** — declared for compatibility with the same protobuf/Connect stack as `common-es` (this repo’s JSON-RPC client does not expose Connect transports).
 
-The JSON-RPC client runtime uses standard Web APIs (`fetch`, streams). TypeScript types for requests/responses come from **protobuf** messages in `common-es`, not from the wire interfaces alone.
+The JSON-RPC client runtime uses standard Web APIs (`fetch`, streams). TypeScript types for requests/responses come from **`common-es`**, not from the wire interfaces alone.
 
 ## License
 
