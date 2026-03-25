@@ -5,12 +5,10 @@ import {
   type AgentCard,
   type CancelTaskRequest,
   type DeleteTaskPushNotificationConfigRequest,
-  type GetExtendedAgentCardRequest,
   type GetTaskPushNotificationConfigRequest,
   type GetTaskRequest,
   type ListTaskPushNotificationConfigsRequest,
   type ListTaskPushNotificationConfigsResponse,
-  type ListTasksRequest,
   type ListTasksResponse,
   type SendMessageRequest,
   type SendMessageResponse,
@@ -19,7 +17,11 @@ import {
   type Task,
   type TaskPushNotificationConfig,
 } from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js";
-import { A2AClientConfig, JsonRpcRequest, JsonRpcResponse } from "./types";
+import {
+  type A2AClientConfig,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+} from "./types";
 import type {
   AgentCard as WireAgentCard,
   ListTaskPushConfigResponse,
