@@ -1,4 +1,6 @@
-## [1.0.541](https://github.com/alis-exchange/a2a-es/compare/v1.0.542...v1.0.541) (2026-03-25)
+## [1.0.541](https://github.com/alis-exchange/a2a-es/compare/v1.0.543...v1.0.541) (2026-03-30)
+
+## [1.0.543](https://github.com/alis-exchange/a2a-es/compare/v1.0.542...v1.0.543) (2026-03-30)
 
 ## [1.0.542](https://github.com/alis-exchange/a2a-es/compare/v1.0.541...v1.0.542) (2026-03-25)
 
