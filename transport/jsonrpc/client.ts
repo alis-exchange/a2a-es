@@ -377,22 +377,23 @@ export class A2AClient {
    * @returns Headers with `Content-Type: application/json`, optional `Authorization`, `A2A-Extensions`, and `extraHeaders`
    */
   private async buildHeaders(): Promise<HeadersInit> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
 
     if (this.config.getToken) {
       const token = await this.config.getToken();
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.set("Authorization", `Bearer ${token}`);
     }
 
     if (this.config.extensionUris?.length) {
-      headers["A2A-Extensions"] = this.config.extensionUris.join(", ");
+      for (const uri of this.config.extensionUris) {
+        headers.append("A2A-Extensions", uri);
+      }
     }
 
     if (this.config.extraHeaders) {
       for (const [k, v] of Object.entries(this.config.extraHeaders)) {
-        headers[k] = v;
+        headers.set(k, v);
       }
     }
 
