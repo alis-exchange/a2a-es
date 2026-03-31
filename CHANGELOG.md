@@ -1,4 +1,11 @@
-## [1.0.541](https://github.com/alis-exchange/a2a-es/compare/v1.0.543...v1.0.541) (2026-03-30)
+## [1.0.541](https://github.com/alis-exchange/a2a-es/compare/v1.0.544...v1.0.541) (2026-03-31)
+
+## [1.0.544](https://github.com/alis-exchange/a2a-es/compare/v1.0.543...v1.0.544) (2026-03-31)
+
+
+### Features
+
+* introduce per-call options in A2AClient for enhanced flexibility in JSON-RPC requests ([7042d02](https://github.com/alis-exchange/a2a-es/commit/7042d023e5a3cc4152b5a5ac3be15f613b99e47b))
 
 ## [1.0.543](https://github.com/alis-exchange/a2a-es/compare/v1.0.542...v1.0.543) (2026-03-30)
 
