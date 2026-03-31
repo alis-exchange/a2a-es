@@ -19,6 +19,7 @@ import {
 } from "@alis-build/common-es/lf/a2a/v1/a2a_pb.js";
 import {
   type A2AClientConfig,
+  type CallOptions,
   type JsonRpcRequest,
   type JsonRpcResponse,
 } from "./types";
@@ -109,40 +110,55 @@ export class A2AClient {
    * Unary `SendMessage`: waits until the server returns one JSON-RPC result.
    *
    * @param params - Protobuf `SendMessageRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `SendMessageResponse` (`task` or `message` payload)
    * @throws `JsonRpcTransportError` — network failure or non-2xx HTTP
    * @throws `JsonRpcProtocolError` (or subclass) — JSON-RPC `error` in the body
    */
-  async sendMessage(params: SendMessageRequest): Promise<SendMessageResponse> {
+  async sendMessage(
+    params: SendMessageRequest,
+    callOptions?: CallOptions,
+  ): Promise<SendMessageResponse> {
     const wire = await this.request<WireStreamResponse>(
       Methods.sendMessage,
       protoSendMessageRequestToWire(params),
+      callOptions,
     );
     return wireSendMessageResponseToProto(wire);
   }
 
   /**
    * @param params - Protobuf `GetTaskRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `Task`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
-  async getTask(params: GetTaskRequest): Promise<Task> {
+  async getTask(
+    params: GetTaskRequest,
+    callOptions?: CallOptions,
+  ): Promise<Task> {
     const wire = await this.request<WireTask>(
       Methods.getTask,
       protoGetTaskRequestToWire(params),
+      callOptions,
     );
     return wireTaskToProto(wire);
   }
 
   /**
    * @param params - Protobuf `CancelTaskRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Updated protobuf `Task`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
-  async cancelTask(params: CancelTaskRequest): Promise<Task> {
+  async cancelTask(
+    params: CancelTaskRequest,
+    callOptions?: CallOptions,
+  ): Promise<Task> {
     const wire = await this.request<WireTask>(
       Methods.cancelTask,
       protoCancelTaskRequestToWire(params),
+      callOptions,
     );
     return wireTaskToProto(wire);
   }
@@ -151,31 +167,37 @@ export class A2AClient {
    * Merges `params` with schema defaults via `create(ListTasksRequestSchema, params)` before converting to wire.
    *
    * @param params - Partial protobuf init for `ListTasksRequest` (default `{}`)
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `ListTasksResponse`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async listTasks(
     params: MessageInitShape<typeof ListTasksRequestSchema> = {},
+    callOptions?: CallOptions,
   ): Promise<ListTasksResponse> {
     const merged = create(ListTasksRequestSchema, params);
     const wire = await this.request<WireListTasksResponse>(
       Methods.listTasks,
       protoListTasksRequestToWire(merged),
+      callOptions,
     );
     return wireListTasksResponseToProto(wire);
   }
 
   /**
    * @param params - Protobuf `GetTaskPushNotificationConfigRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `TaskPushNotificationConfig`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async getTaskPushNotificationConfig(
     params: GetTaskPushNotificationConfigRequest,
+    callOptions?: CallOptions,
   ): Promise<TaskPushNotificationConfig> {
     const wire = await this.request<WireTaskPushConfig>(
       Methods.getTaskPushNotificationConfig,
       protoGetTaskPushNotificationConfigRequestToWire(params),
+      callOptions,
     );
     return wireTaskPushConfigToProto(wire);
   }
@@ -184,59 +206,71 @@ export class A2AClient {
    * On the wire, params are sent as `{ taskId, config }`; this method accepts the flat protobuf RPC shape.
    *
    * @param params - Protobuf `TaskPushNotificationConfig`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Created config as protobuf message
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async createTaskPushNotificationConfig(
     params: TaskPushNotificationConfig,
+    callOptions?: CallOptions,
   ): Promise<TaskPushNotificationConfig> {
     const wire = await this.request<WireTaskPushConfig>(
       Methods.createTaskPushNotificationConfig,
       protoTaskPushNotificationConfigToCreateWire(params),
+      callOptions,
     );
     return wireTaskPushConfigToProto(wire);
   }
 
   /**
    * @param params - Protobuf `ListTaskPushNotificationConfigsRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `ListTaskPushNotificationConfigsResponse`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async listTaskPushNotificationConfigs(
     params: ListTaskPushNotificationConfigsRequest,
+    callOptions?: CallOptions,
   ): Promise<ListTaskPushNotificationConfigsResponse> {
     const wire = await this.request<ListTaskPushConfigResponse>(
       Methods.listTaskPushNotificationConfigs,
       protoListTaskPushNotificationConfigsRequestToWire(params),
+      callOptions,
     );
     return wireListTaskPushNotificationConfigsResponseToProto(wire);
   }
 
   /**
    * @param params - Protobuf `DeleteTaskPushNotificationConfigRequest`
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async deleteTaskPushNotificationConfig(
     params: DeleteTaskPushNotificationConfigRequest,
+    callOptions?: CallOptions,
   ): Promise<void> {
     await this.request<void>(
       Methods.deleteTaskPushNotificationConfig,
       protoDeleteTaskPushNotificationConfigRequestToWire(params),
+      callOptions,
     );
   }
 
   /**
    * @param params - Partial protobuf init for `GetExtendedAgentCardRequest` (default `{}`)
+   * @param callOptions - Per-call overrides (see {@link CallOptions})
    * @returns Protobuf `AgentCard`
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async getExtendedAgentCard(
     params: MessageInitShape<typeof GetExtendedAgentCardRequestSchema> = {},
+    callOptions?: CallOptions,
   ): Promise<AgentCard> {
     const merged = create(GetExtendedAgentCardRequestSchema, params);
     const wire = await this.request<WireAgentCard>(
       Methods.getExtendedAgentCard,
       protoGetExtendedAgentCardRequestToWire(merged),
+      callOptions,
     );
     return wireAgentCardToProto(wire);
   }
@@ -245,19 +279,20 @@ export class A2AClient {
    * POSTs `SendStreamingMessage` and parses SSE frames; each successful frame becomes one yielded `StreamResponse`.
    *
    * @param params - Protobuf `SendMessageRequest`
-   * @param signal - Optional `AbortSignal` to cancel `fetch` / stream read
+   * @param options - Optional signal and per-call overrides
    * @yields Protobuf `StreamResponse` per SSE JSON-RPC result
    * @throws `JsonRpcTransportError` — connection or stream errors (abort ends iteration without throw)
    * @throws `JsonRpcProtocolError` — JSON-RPC error frame (terminal)
    */
   async *sendStreamingMessage(
     params: SendMessageRequest,
-    signal?: AbortSignal,
+    options?: { signal?: AbortSignal; callOptions?: CallOptions },
   ): AsyncGenerator<StreamResponse> {
     for await (const wire of this.stream<WireStreamResponse>(
       Methods.sendStreamingMessage,
       protoSendMessageRequestToWire(params),
-      signal,
+      options?.signal,
+      options?.callOptions,
     )) {
       yield wireStreamResponseToProto(wire);
     }
@@ -267,18 +302,19 @@ export class A2AClient {
    * Same SSE mechanics as {@link A2AClient.sendStreamingMessage} for `SubscribeToTask`.
    *
    * @param params - Protobuf `SubscribeToTaskRequest`
-   * @param signal - Optional cancellation
+   * @param options - Optional signal and per-call overrides
    * @yields Protobuf `StreamResponse` events for the task
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
   async *subscribeToTask(
     params: SubscribeToTaskRequest,
-    signal?: AbortSignal,
+    options?: { signal?: AbortSignal; callOptions?: CallOptions },
   ): AsyncGenerator<StreamResponse> {
     for await (const wire of this.stream<WireStreamResponse>(
       Methods.subscribeToTask,
       protoSubscribeToTaskRequestToWire(params),
-      signal,
+      options?.signal,
+      options?.callOptions,
     )) {
       yield wireStreamResponseToProto(wire);
     }
@@ -289,11 +325,16 @@ export class A2AClient {
    *
    * @param method - JSON-RPC method name (see `Methods`)
    * @param params - Wire object passed as JSON-RPC `params` (already proto→wire converted)
+   * @param callOptions - Per-call header overrides
    * @typeParam R - Wire shape of `result` before further conversion by the caller
    * @throws `JsonRpcTransportError` | `JsonRpcProtocolError`
    */
-  private async request<R>(method: string, params?: unknown): Promise<R> {
-    const response = await this.post(method, params);
+  private async request<R>(
+    method: string,
+    params?: unknown,
+    callOptions?: CallOptions,
+  ): Promise<R> {
+    const response = await this.post(method, params, undefined, callOptions);
 
     let data: JsonRpcResponse<R>;
     try {
@@ -323,8 +364,9 @@ export class A2AClient {
     method: string,
     params?: unknown,
     signal?: AbortSignal,
+    callOptions?: CallOptions,
   ): AsyncGenerator<T> {
-    const response = await this.post(method, params, signal);
+    const response = await this.post(method, params, signal, callOptions);
 
     for await (const frame of readSseStream<T>(response)) {
       yield frame.result as T;
@@ -335,12 +377,14 @@ export class A2AClient {
    * Builds the JSON-RPC envelope (`jsonrpc`, `method`, `params`, monotonic `id`) and POSTs to `config.baseUrl`.
    *
    * @param signal - Passed to `fetch` for streaming methods when provided
+   * @param callOptions - Per-call header overrides
    * @throws `JsonRpcTransportError` — fetch failure or non-2xx status
    */
   private async post(
     method: string,
     params?: unknown,
     signal?: AbortSignal,
+    callOptions?: CallOptions,
   ): Promise<Response> {
     const payload: JsonRpcRequest = {
       jsonrpc: JSONRPC_VERSION,
@@ -353,7 +397,7 @@ export class A2AClient {
     try {
       response = await fetch(this.config.baseUrl, {
         method: "POST",
-        headers: await this.buildHeaders(),
+        headers: await this.buildHeaders(callOptions),
         body: JSON.stringify(payload),
         signal,
       });
@@ -374,9 +418,30 @@ export class A2AClient {
   }
 
   /**
+   * Resolves the effective {@link CallOptions} for a single request.
+   *
+   * For each field in `callOptions`, an explicit value (including `null` / `[]`)
+   * **replaces** the config default. Only `undefined` falls through to the default.
+   */
+  private resolveCallOptions(callOptions?: CallOptions): CallOptions {
+    const defaults = this.config.callOptions;
+    if (!callOptions) return defaults ?? {};
+    return {
+      extensionUris:
+        callOptions.extensionUris !== undefined
+          ? callOptions.extensionUris
+          : defaults?.extensionUris,
+      extraHeaders:
+        callOptions.extraHeaders !== undefined
+          ? callOptions.extraHeaders
+          : defaults?.extraHeaders,
+    };
+  }
+
+  /**
    * @returns Headers with `Content-Type: application/json`, optional `Authorization`, `A2A-Extensions`, and `extraHeaders`
    */
-  private async buildHeaders(): Promise<HeadersInit> {
+  private async buildHeaders(callOptions?: CallOptions): Promise<HeadersInit> {
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
 
@@ -385,14 +450,16 @@ export class A2AClient {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    if (this.config.extensionUris?.length) {
-      for (const uri of this.config.extensionUris) {
+    const resolved = this.resolveCallOptions(callOptions);
+
+    if (resolved.extensionUris?.length) {
+      for (const uri of resolved.extensionUris) {
         headers.append("A2A-Extensions", uri);
       }
     }
 
-    if (this.config.extraHeaders) {
-      for (const [k, v] of Object.entries(this.config.extraHeaders)) {
+    if (resolved.extraHeaders) {
+      for (const [k, v] of Object.entries(resolved.extraHeaders)) {
         headers.set(k, v);
       }
     }

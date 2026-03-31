@@ -87,10 +87,37 @@ export interface A2AClientConfig {
    */
   getToken?: () => string | Promise<string>;
   /**
-   * Optional A2A extension activation (comma-separated URIs per A2A spec).
-   * Sent as the `A2A-Extensions` HTTP header on every JSON-RPC request.
+   * Optional call options.
+   * These are applied to every call to the A2A agent server.
+   * They can be overridden on a per-call basis by passing the options to the client method.
+   */
+  callOptions?: CallOptions;
+}
+
+/**
+ * Per-call options that control HTTP headers sent with each JSON-RPC request.
+ *
+ * When set on {@link A2AClientConfig.callOptions}, these apply to **every** request
+ * as defaults. Each public client method also accepts `CallOptions`; when provided,
+ * the per-call value for each field **replaces** the default for that request:
+ *
+ * - **`extensionUris`**: if provided on the call, the default list is ignored and
+ *   only the per-call list is sent. Pass `[]` to suppress extensions for one request.
+ * - **`extraHeaders`**: if provided on the call, the default map is ignored and
+ *   only the per-call map is applied. Pass `null` to suppress all extra headers;
+ *   pass `{}` to send no extra headers.
+ *
+ * Fields left `undefined` on the per-call options fall through to the default.
+ */
+export interface CallOptions {
+  /**
+   * A2A extension URIs sent as `A2A-Extensions` HTTP headers.
+   * Each URI is appended as a separate header value.
    */
   extensionUris?: string[];
-  /** Optional extra headers merged after Content-Type / Authorization. */
-  extraHeaders?: Record<string, string>;
+  /**
+   * Extra headers merged after `Content-Type` and `Authorization`.
+   * Set to `null` to explicitly suppress all extra headers for one request.
+   */
+  extraHeaders?: Record<string, string> | null;
 }

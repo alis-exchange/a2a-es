@@ -45,8 +45,10 @@ import { A2AClient } from "@alis-build/a2a-es";
 const client = new A2AClient({
   baseUrl: "https://agent.example.com/jsonrpc",
   getToken: async () => "your-bearer-token", // optional
-  extensionUris: ["https://agent.example.com/extensions"], // optional
-  extraHeaders: { "X-Custom-Header": "value" }, // optional
+  callOptions: {
+    extensionUris: ["https://agent.example.com/extensions"], // optional
+    extraHeaders: { "X-Custom-Header": "value" }, // optional
+  },
 });
 
 const response = await client.sendMessage(
@@ -98,7 +100,7 @@ for await (const event of client.sendStreamingMessage(
       returnImmediately: false,
     }),
   }),
-  controller.signal,
+  { signal: controller.signal },
 )) {
   console.log(event);
 }
@@ -121,6 +123,38 @@ for await (const event of client.sendStreamingMessage(
 | `subscribeToTask`                  | `SubscribeToTask`                  | Streaming (async iterator) |
 
 The client calls the same JSON-RPC methods; **on the wire**, push create uses `{ taskId, config }`. The **TypeScript** API for `createTaskPushNotificationConfig` matches the protobuf RPC: a single `TaskPushNotificationConfig` message (flat `taskId`, `url`, `token`, …).
+
+### Per-call options (`CallOptions`)
+
+Every public method accepts an optional `CallOptions` argument that overrides the defaults set on `A2AClientConfig.callOptions` **for that request only**. For streaming methods (`sendStreamingMessage`, `subscribeToTask`) `callOptions` is part of the options bag alongside `signal`.
+
+Each field uses **replace** semantics — if a per-call value is provided (including `null` or `[]`), it replaces the default entirely. Fields left `undefined` fall through to the default.
+
+```typescript
+import type { CallOptions } from "@alis-build/a2a-es";
+
+// Use default extensions from config
+await client.sendMessage(req);
+
+// Override extensions for this call only
+await client.sendMessage(req, {
+  extensionUris: ["https://agent.example.com/extensions/other"],
+});
+
+// Suppress all extensions for this call
+await client.sendMessage(req, { extensionUris: [] });
+
+// Suppress all extra headers for this call
+await client.sendMessage(req, { extraHeaders: null });
+
+// Override extensions on a streaming call
+for await (const event of client.sendStreamingMessage(req, {
+  signal: controller.signal,
+  callOptions: { extensionUris: [] },
+})) {
+  console.log(event);
+}
+```
 
 ## Documentation (API reference)
 
@@ -185,6 +219,7 @@ import {
 
 import type {
   A2AClientConfig,
+  CallOptions,
   JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,

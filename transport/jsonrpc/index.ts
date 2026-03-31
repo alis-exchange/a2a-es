@@ -24,6 +24,7 @@ export {
 } from "./errors";
 export type {
   A2AClientConfig,
+  CallOptions,
   JsonRpcError,
   JsonRpcRequest,
   JsonRpcResponse,
